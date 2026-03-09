@@ -6,34 +6,38 @@ import type { RecurrenceType } from '../types.ts';
 import { format } from 'date-fns';
 
 const TODAY = format(new Date(), 'yyyy-MM-dd');
-
 const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-// Bitmask values: Sun=1, Mon=2, Tue=4, Wed=8, Thu=16, Fri=32, Sat=64
 const DAY_BITS = [1, 2, 4, 8, 16, 32, 64];
+
+type RecurringType = Exclude<RecurrenceType, 'once'>;
 
 interface FormState {
   title: string;
   description: string;
   category_id: string;
   member_id: string;
-  recurrence_type: RecurrenceType;
+  recurring: boolean;
+  recurrence_type: RecurringType;
   start_date: string;
   end_date: string;
-  recurrence_meta: number; // bitmask for weekly, day-of-month for monthly
+  recurrence_meta: number;
   interval_days: number;
+  time: string;
 }
 
 const DEFAULTS: FormState = {
   title: '', description: '',
   category_id: '', member_id: '',
-  recurrence_type: 'once',
+  recurring: false,
+  recurrence_type: 'weekly',
   start_date: TODAY, end_date: '',
-  recurrence_meta: 2, // Monday bit
+  recurrence_meta: 2, // Monday
   interval_days: 7,
+  time: '',
 };
 
 export default function ChoreModal() {
-  const { modalState, closeModal, openEdit } = useApp();
+  const { modalState, closeModal } = useApp();
   const qc = useQueryClient();
 
   const isEdit = modalState.type === 'edit';
@@ -60,16 +64,19 @@ export default function ChoreModal() {
 
   useEffect(() => {
     if (existingChore) {
+      const isRecurring = existingChore.recurrence_type !== 'once';
       setForm({
         title: existingChore.title,
         description: existingChore.description ?? '',
         category_id: existingChore.category_id != null ? String(existingChore.category_id) : '',
         member_id: existingChore.member_id != null ? String(existingChore.member_id) : '',
-        recurrence_type: existingChore.recurrence_type,
+        recurring: isRecurring,
+        recurrence_type: isRecurring ? existingChore.recurrence_type as RecurringType : 'weekly',
         start_date: existingChore.start_date,
         end_date: existingChore.end_date ?? '',
         recurrence_meta: existingChore.recurrence_meta ?? 2,
         interval_days: existingChore.interval_days ?? 7,
+        time: existingChore.time ?? '',
       });
     }
   }, [existingChore]);
@@ -89,15 +96,20 @@ export default function ChoreModal() {
     onSuccess: () => { invalidate(); closeModal(); },
   });
 
+  const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
+    setForm(f => ({ ...f, [key]: value }));
+
   const field = <K extends keyof FormState>(key: K) => ({
     value: form[key] as string,
     onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
-      setForm(f => ({ ...f, [key]: e.target.value })),
+      set(key, e.target.value as FormState[K]),
   });
 
   const toggleDayBit = (bit: number) => {
     setForm(f => ({ ...f, recurrence_meta: f.recurrence_meta ^ bit }));
   };
+
+  const effectiveRecurrenceType: RecurrenceType = form.recurring ? form.recurrence_type : 'once';
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -106,16 +118,17 @@ export default function ChoreModal() {
       description: form.description.trim() || null,
       category_id: form.category_id ? Number(form.category_id) : null,
       member_id: form.member_id ? Number(form.member_id) : null,
-      recurrence_type: form.recurrence_type,
+      recurrence_type: effectiveRecurrenceType,
       start_date: form.start_date,
       end_date: form.end_date || null,
-      recurrence_meta: ['weekly','monthly'].includes(form.recurrence_type) ? form.recurrence_meta : null,
-      interval_days: form.recurrence_type === 'custom' ? form.interval_days : null,
+      recurrence_meta: ['weekly','monthly'].includes(effectiveRecurrenceType) ? form.recurrence_meta : null,
+      interval_days: effectiveRecurrenceType === 'custom' ? form.interval_days : null,
+      time: form.time || null,
     };
     if (isEdit && choreId) {
       updateMut.mutate({ id: choreId, data: payload });
     } else {
-      createMut.mutate(payload as Parameters<typeof api.createChore>[0]);
+      createMut.mutate(payload);
     }
   };
 
@@ -130,10 +143,12 @@ export default function ChoreModal() {
             <label>Title *</label>
             <input autoFocus placeholder="e.g. Take out trash" required {...field('title')} />
           </div>
+
           <div className="form-group">
             <label>Description</label>
             <textarea rows={2} placeholder="Optional details…" style={{ resize: 'vertical' }} {...field('description')} />
           </div>
+
           <div className="form-row">
             <div className="form-group">
               <label>Assigned To</label>
@@ -151,68 +166,92 @@ export default function ChoreModal() {
             </div>
           </div>
 
-          <div className="form-group">
-            <label>Recurrence</label>
-            <select {...field('recurrence_type')}>
-              <option value="once">One-time</option>
-              <option value="daily">Daily</option>
-              <option value="weekly">Weekly</option>
-              <option value="monthly">Monthly</option>
-              <option value="custom">Custom interval</option>
-            </select>
+          {/* Recurrence */}
+          <div className="recurrence-checkbox-row">
+            <input
+              type="checkbox"
+              id="recurring-check"
+              checked={form.recurring}
+              onChange={e => set('recurring', e.target.checked)}
+            />
+            <label htmlFor="recurring-check">Recurring?</label>
           </div>
 
-          {form.recurrence_type === 'weekly' && (
-            <div className="form-group">
-              <label>Days of week</label>
-              <div className="day-checkboxes">
-                {DAYS.map((day, i) => (
-                  <label key={day} className="day-checkbox">
-                    <span>{day}</span>
+          {form.recurring && (
+            <>
+              <div className="radio-group">
+                {(['daily','weekly','monthly','custom'] as RecurringType[]).map(rt => (
+                  <label key={rt} className="radio-option">
                     <input
-                      type="checkbox"
-                      checked={!!(form.recurrence_meta & DAY_BITS[i])}
-                      onChange={() => toggleDayBit(DAY_BITS[i])}
+                      type="radio"
+                      name="recurrence_type"
+                      value={rt}
+                      checked={form.recurrence_type === rt}
+                      onChange={() => set('recurrence_type', rt)}
                     />
+                    {rt.charAt(0).toUpperCase() + rt.slice(1)}
                   </label>
                 ))}
               </div>
-            </div>
-          )}
 
-          {form.recurrence_type === 'monthly' && (
-            <div className="form-group">
-              <label>Day of month</label>
-              <input
-                type="number" min={1} max={31}
-                value={form.recurrence_meta}
-                onChange={e => setForm(f => ({ ...f, recurrence_meta: Number(e.target.value) }))}
-              />
-            </div>
-          )}
+              {form.recurrence_type === 'weekly' && (
+                <div className="form-group">
+                  <label>Days of week</label>
+                  <div className="day-checkboxes">
+                    {DAYS.map((day, i) => (
+                      <label key={day} className="day-checkbox">
+                        <span>{day}</span>
+                        <input
+                          type="checkbox"
+                          checked={!!(form.recurrence_meta & DAY_BITS[i])}
+                          onChange={() => toggleDayBit(DAY_BITS[i])}
+                        />
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
 
-          {form.recurrence_type === 'custom' && (
-            <div className="form-group">
-              <label>Repeat every (days)</label>
-              <input
-                type="number" min={1}
-                value={form.interval_days}
-                onChange={e => setForm(f => ({ ...f, interval_days: Number(e.target.value) }))}
-              />
-            </div>
+              {form.recurrence_type === 'monthly' && (
+                <div className="form-group">
+                  <label>Day of month</label>
+                  <input
+                    type="number" min={1} max={31}
+                    value={form.recurrence_meta}
+                    onChange={e => set('recurrence_meta', Number(e.target.value))}
+                  />
+                </div>
+              )}
+
+              {form.recurrence_type === 'custom' && (
+                <div className="form-group">
+                  <label>Repeat every (days)</label>
+                  <input
+                    type="number" min={1}
+                    value={form.interval_days}
+                    onChange={e => set('interval_days', Number(e.target.value))}
+                  />
+                </div>
+              )}
+            </>
           )}
 
           <div className="form-row">
             <div className="form-group">
-              <label>{form.recurrence_type === 'once' ? 'Date *' : 'Start Date *'}</label>
+              <label>{!form.recurring ? 'Date *' : 'Start Date *'}</label>
               <input type="date" required {...field('start_date')} />
             </div>
-            {form.recurrence_type !== 'once' && (
+            {form.recurring && (
               <div className="form-group">
                 <label>End Date (optional)</label>
                 <input type="date" {...field('end_date')} />
               </div>
             )}
+          </div>
+
+          <div className="form-group">
+            <label>Time (optional)</label>
+            <input type="time" {...field('time')} />
           </div>
 
           <div className="modal-actions">
@@ -239,7 +278,7 @@ export default function ChoreModal() {
             {recentCompletions.slice(0, 10).map(c => (
               <div key={c.id} className="completion-row">
                 <span>{c.date}</span>
-                <span style={{ color: '#22c55e' }}>✓ Done</span>
+                <span style={{ color: 'var(--success)' }}>✓ Done</span>
               </div>
             ))}
           </div>

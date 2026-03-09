@@ -1,16 +1,21 @@
 import { DatabaseSync } from 'node:sqlite';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { unlinkSync } from 'node:fs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DB_PATH = path.join(__dirname, 'chores.db');
 
+// Delete stale WAL/SHM files left by abruptly killed processes (e.g. node --watch).
+// These cause SQLITE_IOERR_SHORT_READ when the new process tries to recover the WAL.
+for (const ext of ['-wal', '-shm']) {
+  try { unlinkSync(DB_PATH + ext); } catch {}
+}
+
 const db = new DatabaseSync(DB_PATH);
+db.exec('PRAGMA foreign_keys = ON;');
 
 db.exec(`
-  PRAGMA journal_mode = WAL;
-  PRAGMA foreign_keys = ON;
-
   CREATE TABLE IF NOT EXISTS members (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
     name       TEXT    NOT NULL,
@@ -55,5 +60,8 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_comp_chore   ON completions(chore_id);
   CREATE INDEX IF NOT EXISTS idx_comp_date    ON completions(date);
 `);
+
+// Idempotent migration: add time column if it doesn't exist
+try { db.exec(`ALTER TABLE chores ADD COLUMN time TEXT`); } catch {}
 
 export default db;

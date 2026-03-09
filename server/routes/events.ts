@@ -153,13 +153,16 @@ router.get('/', (req, res) => {
 
     for (const date of occurrences) {
       const comp = choreCompMap?.get(date);
+      const time = chore.time as string | null;
+      const allDay = !time;
       events.push({
         id: `${chore.id}_${date}`,
         chore_id: chore.id as number,
         title: chore.title as string,
-        start: `${date}T00:00:00`,
-        end: `${date}T23:59:59`,
+        start: time ? `${date}T${time}:00` : `${date}T00:00:00`,
+        end: time ? `${date}T${time}:00` : `${date}T23:59:59`,
         date,
+        allDay,
         category,
         member,
         completed: !!comp,

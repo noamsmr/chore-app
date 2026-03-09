@@ -1,10 +1,12 @@
-import { createContext, useContext, useState, useCallback } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import type { AppContextValue, ModalState, CalendarEvent } from './types.ts';
+import type { AppContextValue, ModalState, CalendarEvent, MemberModalState, CategoryModalState } from './types.ts';
 import Sidebar from './components/Sidebar.tsx';
 import CalendarView from './components/CalendarView.tsx';
 import ChoreModal from './components/ChoreModal.tsx';
 import EventPopover from './components/EventPopover.tsx';
+import MemberModal from './components/MemberModal.tsx';
+import CategoryModal from './components/CategoryModal.tsx';
 
 const queryClient = new QueryClient();
 
@@ -16,6 +18,15 @@ function AppInner() {
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<Set<number>>(new Set());
   const [modalState, setModalState] = useState<ModalState>({ type: 'closed' });
   const [popoverEvent, setPopoverEvent] = useState<CalendarEvent | null>(null);
+  const [memberModal, setMemberModal] = useState<MemberModalState>({ open: false });
+  const [categoryModal, setCategoryModal] = useState<CategoryModalState>({ open: false });
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  const [dark, setDark] = useState(() => localStorage.getItem('theme') === 'dark');
+  useEffect(() => {
+    document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+    localStorage.setItem('theme', dark ? 'dark' : 'light');
+  }, [dark]);
 
   const toggleMember = useCallback((id: number) => {
     setSelectedMemberIds(prev => {
@@ -45,21 +56,38 @@ function AppInner() {
 
   const closeModal = useCallback(() => setModalState({ type: 'closed' }), []);
 
+  const openMemberModal = useCallback((memberId?: number) => {
+    setMemberModal({ open: true, memberId });
+  }, []);
+  const closeMemberModal = useCallback(() => setMemberModal({ open: false }), []);
+
+  const openCategoryModal = useCallback((categoryId?: number) => {
+    setCategoryModal({ open: true, categoryId });
+  }, []);
+  const closeCategoryModal = useCallback(() => setCategoryModal({ open: false }), []);
+
   return (
     <AppContext.Provider value={{
       selectedMemberIds, selectedCategoryIds,
       toggleMember, toggleCategory,
       modalState, openCreate, openEdit, closeModal,
       popoverEvent, setPopoverEvent,
+      memberModal, categoryModal,
+      openMemberModal, openCategoryModal,
+      closeMemberModal, closeCategoryModal,
+      dark, setDark,
+      sidebarOpen, setSidebarOpen,
     }}>
-      <div style={{ display: 'flex', height: '100vh', fontFamily: 'system-ui, sans-serif' }}>
+      <div className="app-layout">
         <Sidebar />
-        <main style={{ flex: 1, overflow: 'hidden' }}>
+        <main className="app-main">
           <CalendarView />
         </main>
       </div>
       {modalState.type !== 'closed' && <ChoreModal />}
       {popoverEvent && <EventPopover />}
+      {memberModal.open && <MemberModal />}
+      {categoryModal.open && <CategoryModal />}
     </AppContext.Provider>
   );
 }
