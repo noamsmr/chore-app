@@ -1,0 +1,15 @@
+{
+  "name": "chore-app",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently --names server,client --prefix-colors cyan,magenta \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:server": "cd server && /opt/homebrew/bin/node --watch --experimental-strip-types index.ts",
+    "dev:client": "cd client && /opt/homebrew/bin/node node_modules/.bin/vite",
+    "build": "cd client && /opt/homebrew/bin/node node_modules/.bin/vite build",
+    "start": "cd server && /opt/homebrew/bin/node --experimental-strip-types index.ts"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
