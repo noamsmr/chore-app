@@ -41,20 +41,22 @@ router.post('/', (req, res) => {
     category_id = null, member_id = null,
     recurrence_type, start_date, end_date = null,
     recurrence_meta = null, interval_days = null,
+    time = null,
   } = req.body as {
     title: string; description?: string;
     category_id?: number; member_id?: number;
     recurrence_type: RecurrenceType; start_date: string; end_date?: string;
     recurrence_meta?: number; interval_days?: number;
+    time?: string | null;
   };
 
   if (!title?.trim()) return res.status(400).json({ error: 'title is required' });
   if (!start_date)    return res.status(400).json({ error: 'start_date is required' });
 
   const result = db.prepare(`
-    INSERT INTO chores (title, description, category_id, member_id, recurrence_type, start_date, end_date, recurrence_meta, interval_days)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(title.trim(), description, category_id, member_id, recurrence_type, start_date, end_date, recurrence_meta, interval_days);
+    INSERT INTO chores (title, description, category_id, member_id, recurrence_type, start_date, end_date, recurrence_meta, interval_days, time)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(title.trim(), description, category_id, member_id, recurrence_type, start_date, end_date, recurrence_meta, interval_days, time);
 
   const row = db.prepare(CHORE_SELECT + ' WHERE c.id = ?').get(result.lastInsertRowid) as Record<string, unknown>;
   res.status(201).json(shapeRow(row));
@@ -70,12 +72,12 @@ router.put('/:id', (req, res) => {
     UPDATE chores SET
       title = ?, description = ?, category_id = ?, member_id = ?,
       recurrence_type = ?, start_date = ?, end_date = ?,
-      recurrence_meta = ?, interval_days = ?, updated_at = ?
+      recurrence_meta = ?, interval_days = ?, time = ?, updated_at = ?
     WHERE id = ?
   `).run(
     merged.title, merged.description, merged.category_id, merged.member_id,
     merged.recurrence_type, merged.start_date, merged.end_date,
-    merged.recurrence_meta, merged.interval_days, merged.updated_at,
+    merged.recurrence_meta, merged.interval_days, merged.time ?? null, merged.updated_at,
     id
   );
 

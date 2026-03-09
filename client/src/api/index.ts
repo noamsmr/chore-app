@@ -34,10 +34,11 @@ export const deleteCategory = (id: number) =>
 export const getChores = () => req<Chore[]>(`${BASE}/chores`);
 export const getChore = (id: number) => req<Chore>(`${BASE}/chores/${id}`);
 export const createChore = (data: {
-  title: string; description?: string;
+  title: string; description?: string | null;
   category_id?: number | null; member_id?: number | null;
   recurrence_type: RecurrenceType; start_date: string; end_date?: string | null;
   recurrence_meta?: number | null; interval_days?: number | null;
+  time?: string | null;
 }) => req<Chore>(`${BASE}/chores`, { method: 'POST', ...json(data) });
 export const updateChore = (id: number, data: Partial<Chore>) =>
   req<Chore>(`${BASE}/chores/${id}`, { method: 'PUT', ...json(data) });
@@ -46,14 +47,13 @@ export const deleteChore = (id: number) =>
 
 // Events
 export const getEvents = async (start: string, end: string): Promise<CalendarEvent[]> => {
-  const raw = await req<Array<Omit<CalendarEvent, 'start' | 'end' | 'allDay'> & { start: string; end: string }>>(
+  const raw = await req<Array<Omit<CalendarEvent, 'start' | 'end'> & { start: string; end: string }>>(
     `${BASE}/events?start=${start}&end=${end}`
   );
   return raw.map(e => ({
     ...e,
     start: new Date(e.start),
     end: new Date(e.end),
-    allDay: true as const,
   }));
 };
 

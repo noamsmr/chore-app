@@ -25,6 +25,7 @@ export interface Chore {
   end_date: string | null;
   recurrence_meta: number | null;
   interval_days: number | null;
+  time: string | null;
   created_at: string;
   updated_at: string;
   // Joined fields
@@ -48,6 +49,7 @@ export interface CalendarEvent {
   start: string;
   end: string;
   date: string;
+  allDay: boolean;
   category: Category | null;
   member: Member | null;
   completed: boolean;

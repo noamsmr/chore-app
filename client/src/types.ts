@@ -25,6 +25,7 @@ export interface Chore {
   end_date: string | null;
   recurrence_meta: number | null;
   interval_days: number | null;
+  time: string | null;
   created_at: string;
   updated_at: string;
   category?: Category | null;
@@ -38,11 +39,11 @@ export interface CalendarEvent {
   start: Date;
   end: Date;
   date: string;
+  allDay: boolean;
   category: Category | null;
   member: Member | null;
   completed: boolean;
   completion_id: number | null;
-  allDay: true;
 }
 
 export interface Completion {
@@ -59,6 +60,9 @@ export type ModalState =
   | { type: 'create'; prefillDate?: string }
   | { type: 'edit'; choreId: number };
 
+export type MemberModalState = { open: false } | { open: true; memberId?: number };
+export type CategoryModalState = { open: false } | { open: true; categoryId?: number };
+
 export interface AppContextValue {
   selectedMemberIds: Set<number>;
   selectedCategoryIds: Set<number>;
@@ -70,4 +74,14 @@ export interface AppContextValue {
   closeModal: () => void;
   popoverEvent: CalendarEvent | null;
   setPopoverEvent: (e: CalendarEvent | null) => void;
+  memberModal: MemberModalState;
+  categoryModal: CategoryModalState;
+  openMemberModal: (memberId?: number) => void;
+  openCategoryModal: (categoryId?: number) => void;
+  closeMemberModal: () => void;
+  closeCategoryModal: () => void;
+  dark: boolean;
+  setDark: (d: boolean) => void;
+  sidebarOpen: boolean;
+  setSidebarOpen: (open: boolean) => void;
 }
